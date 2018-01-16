@@ -1,5 +1,12 @@
 # Graph Theory - Neo4j
 
+**Document History**
+
+| Version | Date | Update |
+|---|---|---|
+| 1.0 | 2018-01-13 | Creation. |
+| 1.1 | 2018-01-16 | Connected and regular graphs, adjacency matrix. |
+
 **Table of content**
 
 - [Graph Theory - Neo4j](#graph-theory---neo4j)
@@ -23,6 +30,9 @@
             - [Graph Reduction](#graph-reduction)
                 - [Graph Reduction - Method 1](#graph-reduction---method-1)
                 - [Graph Reduction - Method 2](#graph-reduction---method-2)
+    - [Adjacency Matrix](#adjacency-matrix)
+    - [Connected Graphs](#connected-graphs)
+    - [Regular Graphs](#regular-graphs)
     - [Conclusion](#conclusion)
 
 ## Introduction
@@ -481,6 +491,115 @@ FOREACH(
 [Cypher Query](cypher/Expansion.reduction.v2.cypher), [Neo4j Console for K5](http://console.neo4j.org/r/85xctk), [Neo4j Console for UG](http://console.neo4j.org/r/5zafcw).
 
 This second method is our preferred one, as it only relies on Cypher, with no execution logic around.
+
+## Adjacency Matrix
+
+> An adjacency matrix is a square matrix used to represent a finite graph. The elements of the matrix indicate whether pairs of vertices are adjacent or not in the graph.
+
+*Taken from [Wikipedia](https://en.wikipedia.org/wiki/Adjacency_matrix).*
+
+```cypher
+// Get all vertices.
+MATCH (n)
+WITH collect(n) AS Nodes
+// For each vertices combination...
+WITH [n IN Nodes |
+    [m IN Nodes |
+		// ...Check for edge existence.
+    	CASE size((n)-[]-(m))
+			WHEN 0 THEN 0
+			ELSE 1
+		END
+    ]
+] AS AdjacencyMatrix
+// Unroll rows.
+UNWIND AdjacencyMatrix AS AdjacencyRows
+RETURN AdjacencyRows;
+```
+
+Output for the [Utility Graph](#utility-graph):
+
+```
+╒═══════════════╕
+│"AdjacencyRows"│
+╞═══════════════╡
+│[0,1,0,1,1,0]  │
+├───────────────┤
+│[1,0,1,0,0,1]  │
+├───────────────┤
+│[0,1,0,1,1,0]  │
+├───────────────┤
+│[1,0,1,0,0,1]  │
+├───────────────┤
+│[1,0,1,0,0,1]  │
+├───────────────┤
+│[0,1,0,1,1,0]  │
+└───────────────┘
+```
+
+[Cypher Query](cypher/AdjacencyMatrix.cypher), [Neo4j Console](http://console.neo4j.org/r/f4rdi8).
+
+## Connected Graphs
+
+> A graph is connected when there is a path between every pair of vertices. In a connected graph, there are no unreachable vertices. A graph that is not connected is disconnected.
+
+*Taken from [Wikipedia](https://en.wikipedia.org/wiki/Connectivity_(graph_theory)#Connected_graph).*
+
+```cypher
+// Get all vertices.
+MATCH (n)
+WITH collect(n) AS Nodes
+// For each vertices combination...
+WITH [n IN Nodes |
+    [m IN Nodes WHERE m <> n |
+		// ...Check for path existence.
+    	CASE length(shortestPath((n)-[*]-(m)))
+			WHEN NULL THEN 0
+			ELSE 1
+		END
+    ]
+] AS PathMatrix
+// Unroll connectivity matrix.
+UNWIND PathMatrix AS PathRows
+UNWIND PathRows AS PathCells
+// Connectivity is verified if all vertices are connected
+// (i.e. connectivity matrix only contains 1).
+WITH count(DISTINCT PathCells) AS PathCellsCount
+WITH CASE PathCellsCount
+	WHEN 1 THEN "Connected"
+	ELSE "Disconnected"
+END AS Result
+RETURN Result;
+```
+
+[Cypher Query](cypher/Connected.check.v1.cypher), [Neo4j Console](http://console.neo4j.org/r/mwbgov).
+
+The connectivity verification can be modified as shown in this [alternative Cypher query](cypher/Connected.check.v2.cypher).
+
+## Regular Graphs
+
+> A regular graph is a graph where each vertex has the same number of neighbors; i.e. every vertex has the same degree.
+
+*Taken from [Wikipedia](https://en.wikipedia.org/wiki/Regular_graph).*
+
+```cypher
+MATCH (n)
+WITH size((n)-[]-()) AS Degrees
+WITH collect(DISTINCT Degrees) AS Degrees
+WITH CASE size(Degrees)
+    WHEN 1 THEN "Regular of degree " + Degrees[0]
+    ELSE "Not regular"
+END AS Result
+RETURN Result;
+```
+
+Output for the [Utility Graph](#utility-graph):
+
+```
+Regular of degree 3
+```
+
+[Cypher Query](cypher/Regular.check.cypher), [Neo4j Console](http://console.neo4j.org/r/dv071).
 
 ## Conclusion
 
